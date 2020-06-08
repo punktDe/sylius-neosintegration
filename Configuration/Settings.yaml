@@ -1,0 +1,9 @@
+Neos:
+  Neos:
+    fusion:
+      autoInclude:
+        PunktDe.Sylius.NeosIntegration: true
+  Fusion:
+    defaultContext:
+      Sylius.Product: 'PunktDe\Sylius\NeosIntegration\Eel\ProductHelper'
+      Sylius.ProductVariant: 'PunktDe\Sylius\NeosIntegration\Eel\ProductVariantHelper'

@@ -1,0 +1,19 @@
+{
+    "description": "",
+    "type": "neos-package",
+    "name": "punktde/sylius-neosintegration",
+    "require": {
+        "neos/flow": "*",
+        "punktde/sylius-api": "dev-master"
+    },
+    "autoload": {
+        "psr-4": {
+            "PunktDe\\Sylius\\NeosIntegration\\": "Classes/"
+        }
+    },
+    "extra": {
+        "neos": {
+            "package-key": "PunktDe.Sylius.NeosIntegration"
+        }
+    }
+}
