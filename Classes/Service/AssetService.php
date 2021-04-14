@@ -9,13 +9,18 @@ namespace PunktDe\Sylius\NeosIntegration\Service;
  */
 
 use Neos\Flow\Annotations as Flow;
+use GuzzleHttp\Client as HttpClient;
+use Neos\Flow\Persistence\Exception\IllegalObjectTypeException;
+use Neos\Flow\Persistence\Exception\InvalidQueryException;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
+use Neos\Flow\ResourceManagement\Exception;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Media\Domain\Model\Asset;
 use Neos\Media\Domain\Model\Image;
 use Neos\Media\Domain\Model\Tag;
 use Neos\Media\Domain\Repository\AssetRepository;
 use Neos\Media\Domain\Repository\TagRepository;
+use Neos\Media\Domain\Service\AssetService as NNeosMediaAssetService;
 use Neos\Utility\Files;
 use Neos\Utility\MediaTypes;
 use PunktDe\Sylius\Api\Client;
@@ -50,19 +55,27 @@ class AssetService
     protected $assetRepository;
 
     /**
-     * * @Flow\Inject
+     * @Flow\Inject
      * @var ResourceManager
      */
     protected $resourceManager;
 
     /**
+     * @Flow\Inject
+     * @var NNeosMediaAssetService
+     */
+    protected $assetService;
+
+    /**
      * @param Product $product
      * @param string $imageType
+     * @param \DateTime|null $maxLifetimeDate
      * @return Asset
-     * @throws \Neos\Flow\Persistence\Exception\IllegalObjectTypeException
-     * @throws \Neos\Flow\ResourceManagement\Exception
+     * @throws Exception
+     * @throws IllegalObjectTypeException
+     * @throws InvalidQueryException
      */
-    public function importSyliusAsset(Product $product, string $imageType = ''): Asset
+    public function importSyliusAsset(Product $product, string $imageType = '', \DateTime $maxLifetimeDate = null): Asset
     {
         $shopUrl = $this->apiClient->getBaseUri();
         $imagePath = $product->getImagePathByType($imageType);
@@ -72,7 +85,19 @@ class AssetService
         $fileExtension = end($parts);
         $fileName = sprintf('%s-%s.%s', $product->getCode(), $imageType === '' ? 'default' : $imageType, $fileExtension);
 
+        /** @var Image $availableImage */
         $availableImage = $this->assetRepository->findBySearchTermOrTags($fileName)->getFirst();
+
+        if (isset($availableImage) && $maxLifetimeDate instanceof \DateTime && $availableImage->getLastModified() < $maxLifetimeDate) {
+
+            $client = new HttpClient();
+            if ($client->head($url, ['http_errors' => false])->getStatusCode() === 200) {
+                $newResource = $this->resourceManager->importResource($url);
+                $this->assetService->replaceAssetResource($availableImage, $newResource);
+            }
+            return $availableImage;
+        }
+
         if (isset($availableImage)) {
             return $availableImage;
         }
@@ -92,7 +117,7 @@ class AssetService
 
     /**
      * @return Tag
-     * @throws \Neos\Flow\Persistence\Exception\IllegalObjectTypeException
+     * @throws IllegalObjectTypeException
      */
     protected function findOrCreateTag(): Tag
     {
