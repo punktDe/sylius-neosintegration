@@ -10,6 +10,7 @@ namespace PunktDe\Sylius\NeosIntegration\Service;
 
 use Neos\Flow\Annotations as Flow;
 use GuzzleHttp\Client as HttpClient;
+use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\Persistence\Exception\IllegalObjectTypeException;
 use Neos\Flow\Persistence\Exception\InvalidQueryException;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
@@ -23,6 +24,7 @@ use Neos\Media\Domain\Repository\TagRepository;
 use Neos\Media\Domain\Service\AssetService as NeosMediaAssetService;
 use Neos\Utility\Files;
 use Neos\Utility\MediaTypes;
+use Psr\Log\LoggerInterface;
 use PunktDe\Sylius\Api\Client;
 use PunktDe\Sylius\Api\Dto\Product;
 
@@ -67,15 +69,21 @@ class AssetService
     protected $assetService;
 
     /**
+     * @Flow\Inject
+     * @var LoggerInterface
+     */
+    protected $logger;
+
+    /**
      * @param Product $product
      * @param string $imageType
      * @param \DateTime|null $maxLifetimeDate
-     * @return Asset
+     * @return Asset|null
      * @throws Exception
      * @throws IllegalObjectTypeException
      * @throws InvalidQueryException
      */
-    public function importSyliusAsset(Product $product, string $imageType = '', \DateTime $maxLifetimeDate = null): Asset
+    public function importSyliusAsset(Product $product, string $imageType = '', \DateTime $maxLifetimeDate = null): ?Asset
     {
         $shopUrl = $this->apiClient->getBaseUri();
         $imagePath = $product->getImagePathByType($imageType);
@@ -88,13 +96,18 @@ class AssetService
         /** @var Image $availableImage */
         $availableImage = $this->assetRepository->findBySearchTermOrTags($fileName)->getFirst();
 
+        $client = new HttpClient();
+        $statusCode = $client->head($url, ['http_errors' => false])->getStatusCode();
+
         if (isset($availableImage) && $maxLifetimeDate instanceof \DateTime && $availableImage->getLastModified() < $maxLifetimeDate) {
 
-            $client = new HttpClient();
-            if ($client->head($url, ['http_errors' => false])->getStatusCode() === 200) {
+            if ($statusCode === 200) {
                 $newResource = $this->resourceManager->importResource($url);
                 $this->assetService->replaceAssetResource($availableImage, $newResource);
+            } else {
+                $this->logger->warning(sprintf('Resource %s could not be imported for replacement. HTTP status code: %s', $url, $statusCode), LogEnvironment::fromMethodName(__METHOD__));
             }
+
             return $availableImage;
         }
 
@@ -102,17 +115,23 @@ class AssetService
             return $availableImage;
         }
 
-        $resource = $this->resourceManager->importResource($url);
+        if ($statusCode === 200) {
+            $resource = $this->resourceManager->importResource($url);
 
-        $image = new Image($resource);
-        $image->getResource()->setFilename($fileName);
-        $image->getResource()->setMediaType(MediaTypes::getMediaTypeFromFilename($fileName));
-        $image->addTag($this->findOrCreateTag());
-        $this->assetRepository->add($image);
+            $image = new Image($resource);
+            $image->getResource()->setFilename($fileName);
+            $image->getResource()->setMediaType(MediaTypes::getMediaTypeFromFilename($fileName));
+            $image->addTag($this->findOrCreateTag());
+            $this->assetRepository->add($image);
 
-        $this->persistenceManager->persistAll();
+            $this->persistenceManager->persistAll();
 
-        return $image;
+            return $image;
+        }
+
+        $this->logger->warning(sprintf('Resource %s could not be imported. HTTP status code: %s', $url, $statusCode), LogEnvironment::fromMethodName(__METHOD__));
+
+        return null;
     }
 
     /**
