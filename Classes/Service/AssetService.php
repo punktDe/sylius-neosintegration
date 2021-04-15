@@ -9,15 +9,22 @@ namespace PunktDe\Sylius\NeosIntegration\Service;
  */
 
 use Neos\Flow\Annotations as Flow;
+use GuzzleHttp\Client as HttpClient;
+use Neos\Flow\Log\Utility\LogEnvironment;
+use Neos\Flow\Persistence\Exception\IllegalObjectTypeException;
+use Neos\Flow\Persistence\Exception\InvalidQueryException;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
+use Neos\Flow\ResourceManagement\Exception;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Media\Domain\Model\Asset;
 use Neos\Media\Domain\Model\Image;
 use Neos\Media\Domain\Model\Tag;
 use Neos\Media\Domain\Repository\AssetRepository;
 use Neos\Media\Domain\Repository\TagRepository;
+use Neos\Media\Domain\Service\AssetService as NeosMediaAssetService;
 use Neos\Utility\Files;
 use Neos\Utility\MediaTypes;
+use Psr\Log\LoggerInterface;
 use PunktDe\Sylius\Api\Client;
 use PunktDe\Sylius\Api\Dto\Product;
 
@@ -50,19 +57,33 @@ class AssetService
     protected $assetRepository;
 
     /**
-     * * @Flow\Inject
+     * @Flow\Inject
      * @var ResourceManager
      */
     protected $resourceManager;
 
     /**
+     * @Flow\Inject
+     * @var NeosMediaAssetService
+     */
+    protected $assetService;
+
+    /**
+     * @Flow\Inject
+     * @var LoggerInterface
+     */
+    protected $logger;
+
+    /**
      * @param Product $product
      * @param string $imageType
-     * @return Asset
-     * @throws \Neos\Flow\Persistence\Exception\IllegalObjectTypeException
-     * @throws \Neos\Flow\ResourceManagement\Exception
+     * @param \DateTime|null $maxLifetimeDate
+     * @return Asset|null
+     * @throws Exception
+     * @throws IllegalObjectTypeException
+     * @throws InvalidQueryException
      */
-    public function importSyliusAsset(Product $product, string $imageType = ''): Asset
+    public function importSyliusAsset(Product $product, string $imageType = '', \DateTime $maxLifetimeDate = null): ?Asset
     {
         $shopUrl = $this->apiClient->getBaseUri();
         $imagePath = $product->getImagePathByType($imageType);
@@ -72,27 +93,51 @@ class AssetService
         $fileExtension = end($parts);
         $fileName = sprintf('%s-%s.%s', $product->getCode(), $imageType === '' ? 'default' : $imageType, $fileExtension);
 
+        /** @var Image $availableImage */
         $availableImage = $this->assetRepository->findBySearchTermOrTags($fileName)->getFirst();
+
+        $client = new HttpClient();
+        $statusCode = $client->head($url, ['http_errors' => false])->getStatusCode();
+
+        if (isset($availableImage) && $maxLifetimeDate instanceof \DateTime && $availableImage->getLastModified() < $maxLifetimeDate) {
+
+            if ($statusCode === 200) {
+                $newResource = $this->resourceManager->importResource($url);
+                $this->assetService->replaceAssetResource($availableImage, $newResource);
+                $this->persistenceManager->persistAll();
+            } else {
+                $this->logger->warning(sprintf('Resource %s could not be imported for replacement. HTTP status code: %s', $url, $statusCode), LogEnvironment::fromMethodName(__METHOD__));
+            }
+
+            return $availableImage;
+        }
+
         if (isset($availableImage)) {
             return $availableImage;
         }
 
-        $resource = $this->resourceManager->importResource($url);
+        if ($statusCode === 200) {
+            $resource = $this->resourceManager->importResource($url);
 
-        $image = new Image($resource);
-        $image->getResource()->setFilename($fileName);
-        $image->getResource()->setMediaType(MediaTypes::getMediaTypeFromFilename($fileName));
-        $image->addTag($this->findOrCreateTag());
-        $this->assetRepository->add($image);
+            $image = new Image($resource);
+            $image->getResource()->setFilename($fileName);
+            $image->getResource()->setMediaType(MediaTypes::getMediaTypeFromFilename($fileName));
+            $image->addTag($this->findOrCreateTag());
+            $this->assetRepository->add($image);
 
-        $this->persistenceManager->persistAll();
+            $this->persistenceManager->persistAll();
 
-        return $image;
+            return $image;
+        }
+
+        $this->logger->warning(sprintf('Resource %s could not be imported. HTTP status code: %s', $url, $statusCode), LogEnvironment::fromMethodName(__METHOD__));
+
+        return null;
     }
 
     /**
      * @return Tag
-     * @throws \Neos\Flow\Persistence\Exception\IllegalObjectTypeException
+     * @throws IllegalObjectTypeException
      */
     protected function findOrCreateTag(): Tag
     {

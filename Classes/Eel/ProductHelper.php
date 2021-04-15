@@ -9,6 +9,8 @@ namespace PunktDe\Sylius\NeosIntegration\Eel;
 
 use Neos\Flow\Annotations as Flow;
 use Neos\Eel\ProtectedContextAwareInterface;
+use Neos\Flow\Persistence\Exception\IllegalObjectTypeException;
+use Neos\Flow\ResourceManagement\Exception;
 use Neos\Http\Factories\UriFactory;
 use Neos\Media\Domain\Model\Asset;
 use Neos\Utility\Files;
@@ -51,13 +53,14 @@ class ProductHelper implements ProtectedContextAwareInterface
     /**
      * @param Product $product
      * @param string $imageType
+     * @param \DateTime|null $maxLifetimeDate
      * @return Asset | null
-     * @throws \Neos\Flow\Persistence\Exception\IllegalObjectTypeException
-     * @throws \Neos\Flow\ResourceManagement\Exception
+     * @throws Exception
+     * @throws IllegalObjectTypeException
      */
-    public function getAsset(Product $product, string $imageType = ''): ?Asset
+    public function getAsset(Product $product, string $imageType = '', \DateTime $maxLifetimeDate = null): ?Asset
     {
-        return $this->assetService->importSyliusAsset($product, $imageType);
+        return $this->assetService->importSyliusAsset($product, $imageType, $maxLifetimeDate);
     }
 
     /**
