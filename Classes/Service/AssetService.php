@@ -104,6 +104,7 @@ class AssetService
             if ($statusCode === 200) {
                 $newResource = $this->resourceManager->importResource($url);
                 $this->assetService->replaceAssetResource($availableImage, $newResource);
+                $this->persistenceManager->persistAll();
             } else {
                 $this->logger->warning(sprintf('Resource %s could not be imported for replacement. HTTP status code: %s', $url, $statusCode), LogEnvironment::fromMethodName(__METHOD__));
             }
