@@ -62,7 +62,7 @@ class AssetService
 
     /**
      * @Flow\Inject
-     * @var NNeosMediaAssetService
+     * @var NeosMediaAssetService
      */
     protected $assetService;
 
