@@ -20,7 +20,7 @@ use Neos\Media\Domain\Model\Image;
 use Neos\Media\Domain\Model\Tag;
 use Neos\Media\Domain\Repository\AssetRepository;
 use Neos\Media\Domain\Repository\TagRepository;
-use Neos\Media\Domain\Service\AssetService as NNeosMediaAssetService;
+use Neos\Media\Domain\Service\AssetService as NeosMediaAssetService;
 use Neos\Utility\Files;
 use Neos\Utility\MediaTypes;
 use PunktDe\Sylius\Api\Client;
