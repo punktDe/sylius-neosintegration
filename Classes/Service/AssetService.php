@@ -77,14 +77,19 @@ class AssetService
     /**
      * @param Product $product
      * @param string $imageType
-     * @param \DateTime|null $maxLifetimeDate
+     * @param string | \DateInterval | null $maxLifetimeInterval
      * @return Asset|null
      * @throws Exception
      * @throws IllegalObjectTypeException
      * @throws InvalidQueryException
+     * @throws \Exception
      */
-    public function importSyliusAsset(Product $product, string $imageType = '', \DateTime $maxLifetimeDate = null): ?Asset
+    public function importSyliusAsset(Product $product, string $imageType = '', $maxLifetimeInterval = null): ?Asset
     {
+        if (!$maxLifetimeInterval instanceof \DateInterval) {
+            $maxLifetimeInterval = new \DateInterval($maxLifetimeInterval);
+        }
+
         $shopUrl = $this->apiClient->getBaseUri();
         $imagePath = $product->getImagePathByType($imageType);
         $url = Files::concatenatePaths([$shopUrl, 'media/image', $imagePath]);
@@ -99,7 +104,7 @@ class AssetService
         $client = new HttpClient();
         $statusCode = $client->head($url, ['http_errors' => false])->getStatusCode();
 
-        if (isset($availableImage) && $maxLifetimeDate instanceof \DateTime && $availableImage->getLastModified() < $maxLifetimeDate) {
+        if (isset($availableImage) && $availableImage->getLastModified()->add($maxLifetimeInterval) < new \DateTime('now')) {
 
             if ($statusCode === 200) {
                 $newResource = $this->resourceManager->importResource($url);
