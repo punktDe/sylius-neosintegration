@@ -86,7 +86,7 @@ class AssetService
      */
     public function importSyliusAsset(Product $product, string $imageType = '', $maxLifetimeInterval = null): ?Asset
     {
-        if (!$maxLifetimeInterval instanceof \DateInterval) {
+        if (!$maxLifetimeInterval instanceof \DateInterval && $maxLifetimeInterval !== null) {
             $maxLifetimeInterval = new \DateInterval($maxLifetimeInterval);
         }
 
@@ -104,12 +104,20 @@ class AssetService
         $client = new HttpClient();
         $statusCode = $client->head($url, ['http_errors' => false])->getStatusCode();
 
-        if (isset($availableImage) && $availableImage->getLastModified()->add($maxLifetimeInterval) < new \DateTime('now')) {
+        if ($availableImage instanceof Image && $maxLifetimeInterval instanceof \DateInterval && $availableImage->getLastModified()->add($maxLifetimeInterval) < new \DateTime('now')) {
 
             if ($statusCode === 200) {
                 $newResource = $this->resourceManager->importResource($url);
-                $this->assetService->replaceAssetResource($availableImage, $newResource);
-                $this->persistenceManager->persistAll();
+                $originalResource = $availableImage->getResource();
+
+                if ($originalResource->getSha1() !== $newResource->getSha1()) {
+                    $this->assetService->replaceAssetResource($availableImage, $newResource);
+                    $this->resourceManager->deleteResource($originalResource);
+                    $this->persistenceManager->persistAll();
+                } else {
+                    $this->resourceManager->deleteResource($newResource);
+                }
+
             } else {
                 $this->logger->warning(sprintf('Resource %s could not be imported for replacement. HTTP status code: %s', $url, $statusCode), LogEnvironment::fromMethodName(__METHOD__));
             }
@@ -117,12 +125,18 @@ class AssetService
             return $availableImage;
         }
 
-        if (isset($availableImage)) {
+        if ($availableImage instanceof Image) {
             return $availableImage;
         }
 
         if ($statusCode === 200) {
             $resource = $this->resourceManager->importResource($url);
+            $possibleImage = $this->assetRepository->findOneByResourceSha1($resource->getSha1());
+
+            if ($possibleImage instanceof Image) {
+                $this->resourceManager->deleteResource($resource);
+                return $possibleImage;
+            }
 
             $image = new Image($resource);
             $image->getResource()->setFilename($fileName);
