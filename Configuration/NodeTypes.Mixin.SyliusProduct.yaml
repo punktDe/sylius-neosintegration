@@ -24,4 +24,4 @@ PunktDe.Sylius.NeosIntegration:Mixin.SyliusProduct:
             allowEmpty: false
             multiple: false
             placeholder: 'Type to search'
-            dataSourceIdentifier: 'PunktDeSyliusNeosItegration_ProductList'
+            dataSourceIdentifier: 'PunktDeSyliusNeosIntegration_ProductList'

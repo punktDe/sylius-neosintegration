@@ -29,7 +29,7 @@ PunktDe.Sylius.NeosIntegration:Mixin.SyliusProductVariant:
             allowEmpty: false
             multiple: false
             placeholder: 'Type to search'
-            dataSourceIdentifier: 'PunktDeSyliusNeosItegration_ProductList'
+            dataSourceIdentifier: 'PunktDeSyliusNeosIntegration_ProductList'
     syliusProductVariant:
       type: string
       defaultValue: ''
@@ -44,6 +44,6 @@ PunktDe.Sylius.NeosIntegration:Mixin.SyliusProductVariant:
             allowEmpty: false
             multiple: false
             placeholder: 'Type to search'
-            dataSourceIdentifier: 'PunktDeSyliusNeosItegration_ProductVariantList'
+            dataSourceIdentifier: 'PunktDeSyliusNeosIntegration_ProductVariantList'
             dataSourceAdditionalData:
               syliusProduct: 'ClientEval:node.properties.syliusProduct'
