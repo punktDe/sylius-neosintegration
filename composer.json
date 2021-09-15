@@ -4,7 +4,7 @@
     "name": "punktde/sylius-neosintegration",
     "require": {
         "neos/flow": "*",
-        "punktde/sylius-api": "dev-master"
+        "punktde/sylius-api": "dev-feature/sylius-api-v2"
     },
     "autoload": {
         "psr-4": {
