@@ -1,13 +1,10 @@
 PunktDe.Sylius.NeosIntegration:Mixin.SyliusProductVariant:
+  superTypes:
+    'PunktDe.Sylius.NeosIntegration:Mixin.SyliusProduct': true
   abstract: true
   ui:
     inspector:
       groups:
-        syliusProduct:
-          position: 20
-          label: Shop Product
-          icon: 'icon-tags'
-          tab: 'default'
         syliusProductVariant:
           position: 20
           label: Product Variant
@@ -15,21 +12,6 @@ PunktDe.Sylius.NeosIntegration:Mixin.SyliusProductVariant:
           tab: 'default'
 
   properties:
-    syliusProduct:
-      type: string
-      defaultValue: ''
-      ui:
-        label: 'Product'
-        reloadIfChanged: true
-        inspector:
-          position: 20
-          group: syliusProduct
-          editor: 'Neos.Neos/Inspector/Editors/SelectBoxEditor'
-          editorOptions:
-            allowEmpty: false
-            multiple: false
-            placeholder: 'Type to search'
-            dataSourceIdentifier: 'PunktDeSyliusNeosIntegration_ProductList'
     syliusProductVariant:
       type: string
       defaultValue: ''
