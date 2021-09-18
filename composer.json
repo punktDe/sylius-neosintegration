@@ -2,6 +2,7 @@
     "description": "",
     "type": "neos-package",
     "name": "punktde/sylius-neosintegration",
+    "license": "MIT",
     "require": {
         "neos/flow": "*",
         "punktde/sylius-api": "dev-master || ^2.0"
