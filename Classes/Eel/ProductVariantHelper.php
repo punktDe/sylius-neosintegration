@@ -2,6 +2,11 @@
 declare(strict_types=1);
 namespace PunktDe\Sylius\NeosIntegration\Eel;
 
+/*
+ *  (c) 2021 punkt.de GmbH - Karlsruhe, Germany - http://punkt.de
+ *  All rights reserved.
+ */
+
 use Neos\Flow\Annotations as Flow;
 use Neos\Eel\ProtectedContextAwareInterface;
 use PunktDe\Sylius\Api\Dto\ProductVariant;
@@ -21,9 +26,9 @@ class ProductVariantHelper implements ProtectedContextAwareInterface
      * @param string $productVariantCode
      * @return ProductVariant|null
      */
-    public function getVariant(string $productCode = '', string $productVariantCode = ''): ?ProductVariant
+    public function getVariant(string $productVariantCode = ''): ?ProductVariant
     {
-        return $this->productVariant->get($productVariantCode, $productCode);
+        return $this->productVariant->get($productVariantCode);
     }
 
     /**
