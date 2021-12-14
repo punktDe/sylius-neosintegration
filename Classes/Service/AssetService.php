@@ -24,6 +24,7 @@ use Neos\Media\Domain\Repository\TagRepository;
 use Neos\Media\Domain\Service\AssetService as NeosMediaAssetService;
 use Neos\Utility\Files;
 use Neos\Utility\MediaTypes;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 use PunktDe\Sylius\Api\Client;
 use PunktDe\Sylius\Api\Dto\Product;
@@ -75,6 +76,11 @@ class AssetService
     protected $logger;
 
     /**
+     * @var ResponseInterface[]
+     */
+    protected static $shopResourceResponseCache = [];
+
+    /**
      * @param Product $product
      * @param string $imageType
      * @param \DateTime|null $maxLifetimeDate
@@ -85,6 +91,7 @@ class AssetService
      */
     public function importSyliusAsset(Product $product, string $imageType = '', \DateTime $maxLifetimeDate = null): ?Asset
     {
+        $syliusAssetTag = $this->findOrCreateTag();
         $shopUrl = $this->apiClient->getBaseUri();
         $imagePath = $product->getImagePathByType($imageType);
         $url = Files::concatenatePaths([$shopUrl, 'media/image', $imagePath]);
@@ -96,41 +103,43 @@ class AssetService
         /** @var Image $availableImage */
         $availableImage = $this->assetRepository->findBySearchTermOrTags($fileName)->getFirst();
 
-        $client = new HttpClient();
-        $statusCode = $client->head($url, ['http_errors' => false])->getStatusCode();
+        // If there is an image
+        if ($availableImage instanceof Image) {
 
-        if (isset($availableImage) && $maxLifetimeDate instanceof \DateTime && $availableImage->getLastModified() < $maxLifetimeDate) {
-
-            if ($statusCode === 200) {
-                $newResource = $this->resourceManager->importResource($url);
-                $this->assetService->replaceAssetResource($availableImage, $newResource);
-                $this->persistenceManager->persistAll();
-            } else {
-                $this->logger->warning(sprintf('Resource %s could not be imported for replacement. HTTP status code: %s', $url, $statusCode), LogEnvironment::fromMethodName(__METHOD__));
+            // If maximum lifetime is specified, check the image against this date
+            if ($maxLifetimeDate instanceof \DateTime && $availableImage->getLastModified() < $maxLifetimeDate) {
+                return $availableImage;
             }
 
-            return $availableImage;
+            // If the local image date is newer then the last modified date of the remote
+            if ($availableImage->getLastModified() > $this->getShopResourceLastModified($url)) {
+                return $availableImage;
+            }
+
+            // If there is an outdated image and the resource exists in the shop, fetch it and replace the local resource
+            if ($this->shopResourceExists($url)) {
+                $newResource = $this->resourceManager->importResource($url);
+                $oldResource = $availableImage->getResource();
+                $this->assetService->replaceAssetResource($availableImage, $newResource);
+                $this->resourceManager->deleteResource($oldResource);
+                $this->persistenceManager->persistAll();
+            }
         }
 
-        if (isset($availableImage)) {
-            return $availableImage;
-        }
-
-        if ($statusCode === 200) {
+        // If there is no local image, create it
+        if ($availableImage === null && $this->shopResourceExists($url)) {
             $resource = $this->resourceManager->importResource($url);
 
             $image = new Image($resource);
             $image->getResource()->setFilename($fileName);
             $image->getResource()->setMediaType(MediaTypes::getMediaTypeFromFilename($fileName));
-            $image->addTag($this->findOrCreateTag());
+            $image->addTag($syliusAssetTag);
             $this->assetRepository->add($image);
 
             $this->persistenceManager->persistAll();
 
             return $image;
         }
-
-        $this->logger->warning(sprintf('Resource %s could not be imported. HTTP status code: %s', $url, $statusCode), LogEnvironment::fromMethodName(__METHOD__));
 
         return null;
     }
@@ -150,5 +159,30 @@ class AssetService
         }
 
         return $tag;
+    }
+
+    protected function getShopResourceLastModified(string $url): \DateTime
+    {
+        return empty($this->fetchShopResourceState($url)->getHeader('last-modified')) ? new \DateTime() : new \DateTime($this->fetchShopResourceState($url)->getHeader('last-modified')[0]);
+    }
+
+    protected function shopResourceExists(string $url): bool
+    {
+        if ($this->fetchShopResourceState($url)->getStatusCode() === 200) {
+            return true;
+        }
+
+        $this->logger->warning(sprintf('Resource %s was not found. HTTP status code: %s', $url, $statusCode), LogEnvironment::fromMethodName(__METHOD__));
+        return false;
+    }
+
+    protected function fetchShopResourceState(string $url): ResponseInterface
+    {
+        if (!isset(self::$shopResourceResponseCache[$url])) {
+            $client = new HttpClient();
+            self::$shopResourceResponseCache[$url] = $client->head($url, ['http_errors' => false]);
+        }
+
+        return self::$shopResourceResponseCache[$url];
     }
 }
