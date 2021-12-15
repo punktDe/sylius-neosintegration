@@ -123,6 +123,7 @@ class AssetService
                 $this->assetService->replaceAssetResource($availableImage, $newResource);
                 $this->resourceManager->deleteResource($oldResource);
                 $this->persistenceManager->persistAll();
+                return $availableImage;
             }
         }
 
@@ -172,7 +173,7 @@ class AssetService
             return true;
         }
 
-        $this->logger->warning(sprintf('Resource %s was not found. HTTP status code: %s', $url, $statusCode), LogEnvironment::fromMethodName(__METHOD__));
+        $this->logger->warning(sprintf('Resource %s was not found. HTTP status code: %s', $url, $this->fetchShopResourceState($url)->getStatusCode()), LogEnvironment::fromMethodName(__METHOD__));
         return false;
     }
 
